@@ -80,3 +80,117 @@ def extract_features(sentence):
     })
     
     return df
+
+def full_constituent(node, head_word, ce=[]):
+    """
+    Recursively traverses a parse tree to find the full constituent starting from a given head node.
+    
+    Args:
+    - node (spacy.syntax.Nonterminal): The head node from which to find the full constituent.
+    - ce (list): A list to store the constituent elements.
+    
+    Returns:
+    - tuple: The full constituent as a tuple of (spacy.syntax.Nonterminal, list) where the first element is the
+      head node of the constituent and the second element is a list of the constituent elements.
+    """
+    # If node has no children, return node and ce
+    if not node.children:
+        return node, ce
+    
+    # Traverse children and append children with label in ['NP', 'VP', 'PP'] to ce
+    for child in node.children:
+        if child.label in ['NP', 'VP', 'PP']:
+            ce.append(child.leaf_labels())
+        full_constituent(child, head_word, ce)
+    
+    # Return the last child and ce
+    return child, list(filter(lambda x: head_word in x, ce))
+
+
+def lookParent(sent, tok, d, pospath):
+    """
+    Recursively looks for the parent of a given token in a sentence and keeps track of the path
+    in terms of part-of-speech tags.
+
+    Args:
+        sent (object): A sentence object that contains a list of words.
+        tok (object): A token object representing the current token being looked at.
+        d (int): An integer representing the current depth in the tree traversal.
+        pospath (list): A list of part-of-speech tags representing the path from the original token to the root.
+
+    Returns:
+        Tuple: A tuple of the current depth and the updated part-of-speech tag path.
+
+    """
+    # If the token has no head, return the current depth and part-of-speech tag path
+    if tok.head == 0:
+        pospath.append(tok.pos)
+        return d, pospath
+
+    # If the token has a head, recursively call the function with the parent token
+    else:
+        d += 1
+        pospath.append(tok.pos)
+        headword = sent.words[tok.head - 1]
+        return lookParent(sent, headword, d, pospath)
+
+    
+def extract_dependency_features(text):
+    """
+    Extracts various dependency features from a given sentence using the Stanza library.
+
+    Args:
+        text (str): The input text to extract features from.
+
+    Returns:
+        pandas.DataFrame: A dataframe containing the extracted features, with one row per token in the sentence.
+
+    Features:
+        - head (str): The text of the head word of each token.
+        - full_constituent (str): The full constituent starting from the head of each token.
+        - dependents (str): The text of all dependents of each token, separated by commas.
+        - dep_path (str): The dependency path from the root to the head of each token.
+    """
+    nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma,depparse,constituency')
+    doc = nlp(text)
+    
+    tree = doc.sentences[0].constituency
+    
+    rows = []
+    for sent in doc.sentences:
+        for word in sent.words:
+            row = {
+                'head': sent.words[word.head - 1].text if word.head != 0 else "ROOT",
+                'full_constituent': full_constituent(tree, word.text)[1],
+                'dependents': "",
+                'dep_path': "",
+                'path_len': lookParent(sent, word, 0, [])[0],
+                'dep_rel': word.deprel, # GET DEPEPDENCY RELATION WITH ITS HEAD
+            }
+            
+            # Build the dependency path from the root to the head of the token
+            if word.head == 0:
+                row['dep_path'] = "ROOT"
+            else:
+                path = []
+                curr_word = word
+                while curr_word.head != 0:
+                    path.append(curr_word.text)
+                    curr_word = sent.words[curr_word.head - 1]
+                path.append("ROOT")
+                row['dep_path'] = " -> ".join(reversed(path))
+            
+            # Traverse the dependency tree to extract all dependents of the word
+            dependents = []
+            stack = [word]
+            while stack:
+                curr_word = stack.pop()
+                for dep_word in sent.words:
+                    if dep_word.head == curr_word.id:
+                        dependents.append(dep_word.text)
+                        stack.append(dep_word)
+            row['dependents'] = ", ".join(dependents)
+            
+            rows.append(row)
+    
+    return pd.DataFrame(rows)
