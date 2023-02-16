@@ -1,3 +1,4 @@
-stanza
-pandas
+stanza~=1.4.2
+pandas~=1.5.3
 numpy
+nltk
