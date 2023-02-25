@@ -100,7 +100,8 @@ def full_constituent(node, head_word, ce=[]):
     # Traverse children and append children with label in ['NP', 'VP', 'PP'] to ce
     for child in node.children:
         if child.label in ['NP', 'VP', 'PP']:
-            ce.append(child.leaf_labels())
+            if head_word in child.leaf_labels():
+                ce.append(child.leaf_labels())
         full_constituent(child, head_word, ce)
     
     # Return the last child and ce
@@ -161,7 +162,7 @@ def extract_dependency_features(text):
         for word in sent.words:
             row = {
                 'head': sent.words[word.head - 1].text if word.head != 0 else "ROOT",
-                'full_constituent': full_constituent(tree, word.text)[1],
+                'full_constituent': full_constituent(tree, word.text)[1] if word.head == 0 else [word.text],
                 'dependents': "",
                 'dep_path': "",
                 'path_len': lookParent(sent, word, 0, [])[0],
