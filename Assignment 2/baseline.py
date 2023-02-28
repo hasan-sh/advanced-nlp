@@ -6,8 +6,8 @@ N = 800000 # downsample coeffitient
 
 
 def read_dfs():
-    train_file = '../data/train_ner.tsv'
-    test_file = '../data/test_ner.tsv'
+    train_file = './train_ner.tsv'
+    test_file = './test_ner.tsv'
     train_df = pd.read_csv(train_file, delimiter='\t')
     test_df = pd.read_csv(test_file, delimiter='\t')
     
@@ -56,13 +56,10 @@ def main(argv, arc):
     # Proper per class evaluation
     labels = list(set(y_train))
 
-    report = classification_report(y_test, y_pred,
-                                   target_names=[mapping[i] for i in labels])
-    print(report)
+    """report = classification_report(y_test, y_pred,
+                                   target_names=[mapping[i] for i in labels])"""
+    #print(report)
 
 
 
 
-if __name__ == '__main__':
-
-    main(sys.argv, len(sys.argv))
