@@ -98,8 +98,8 @@ def read_data(file_path: str, save_to_csv: bool = False, output_file: str = None
     
     # Split the file into individual documents, each separated by a blank line
     data = []
-    # for doc_i, doc in enumerate(train_data.split('\n\n')[:100]):
-    for doc_i, doc in enumerate(train_data.split('\n\n')):
+    for doc_i, doc in enumerate(train_data.split('\n\n')[:5000]):
+    # for doc_i, doc in enumerate(train_data.split('\n\n')):
         doc = doc.split('\n')
         sentences = ''
         for line in doc:
@@ -202,6 +202,7 @@ def encode_features(train_df, test_df):
 
     # Get numerical features
     cols_num = ['sent_id', 'token_id', 'distance_head']
+    
     train_num = numerical_features(train_df, cols_num)
     test_num = numerical_features(test_df, cols_num)
 
@@ -216,9 +217,9 @@ def encode_features(train_df, test_df):
     X_test = pd.concat([test_tokens, test_cat, test_num], axis=1)
 
     # Turn targets into categorical labels
-    y_train, y_test = make_cat_label(train_df['target'], test_df['target'])
+    y_train, y_test, y_test_inverted, mapping = make_cat_label(train_df['target'], test_df['target'])
 
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_test, y_test, y_test_inverted, mapping
 
 
 def evaluate(y_test, y_pred):
@@ -276,8 +277,12 @@ def downsample(tokens_train, N):
         pandas.DataFrame: A downsampled DataFrame with the same columns as the input DataFrame.
     """
     mask = tokens_train["target"] == "_"
-    to_remove = tokens_train[mask].sample(n=N).index
+    # take 20% of non-target
+    # non_target = len(tokens_train) - len(mask)
+    to_remove = tokens_train[mask].sample(n=N ).index
     downsampled = tokens_train.drop(to_remove)
+    downsampled.reset_index(inplace=True)
+
     return downsampled
 
 def numerical_features(df, cols):
@@ -369,13 +374,22 @@ def make_cat_label(train_target, test_target):
     """
     encoder = LabelEncoder() 
     y_all = np.concatenate([train_target, test_target], axis=0)
+
     # Fit the label encoder to the targets
     encoder.fit(y_all.astype(str))
+
+
+    mapping = dict(zip(range(len(encoder.classes_)), encoder.classes_))
+
 
     y_train = encoder.transform(train_target.astype(str))
     y_test = encoder.transform(test_target.astype(str))
 
-    return y_train,y_test
+
+    y_test_inverted = encoder.inverse_transform(y_test)
+
+
+    return y_train, y_test, y_test_inverted, mapping
 
 
 #MODEL 1
